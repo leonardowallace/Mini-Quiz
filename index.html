@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini-Game Boas Práticas TI</title>
+    <style>
+        body { margin: 0; background: #fafafa; }
+        canvas { display: block; margin: auto; }
+    </style>
+</head>
+<body>
+    <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyBzFtwO6DtCQNsS1Ja2QsH4nOJEXDwq6QA",
+    authDomain: "mini-game-ti.firebaseapp.com",
+    projectId: "mini-game-ti",
+    storageBucket: "mini-game-ti.firebasestorage.app",
+    messagingSenderId: "77152341740",
+    appId: "1:77152341740:web:7f134eac6c8cf150a89fc9",
+    measurementId: "G-2QS55EY821"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+    <script src="perguntas.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

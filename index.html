@@ -2,28 +2,40 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
+
   <title>Mini-Game Boas Práticas TI</title>
+
+  <!-- PRELOAD DAS FONTES OTF -->
+  <link rel="preload" href="fonts/Arlon-Regular.otf" as="font" type="font/otf" crossorigin>
+  <link rel="preload" href="fonts/Arlon-Bold.otf" as="font" type="font/otf" crossorigin>
+
+  <link rel="stylesheet" href="style.css">
+
   <style>
-    body { margin:0; background:#fafafa; font-family: Arial, sans-serif; }
-    canvas { display:block; margin:auto; }
-    #leaderboard { position:absolute; right:10px; top:10px; width:260px; background:#fff; border:1px solid #ddd; padding:8px; font-size:14px; }
+    canvas {
+      image-rendering: optimizeQuality;
+    }
   </style>
 </head>
+
 <body>
+    <header>
+        <img src="marca_Natulab_FUNDO_TRANSPARENTE.png" alt="Logo Natulab">
+    </header>
+
   <div id="leaderboard" style="display:none">
-    <strong>Leaderboard (Top 10)</strong>
+    <strong id="leadTitle">Leaderboard (Top 10)</strong>
     <ol id="lbList"></ol>
   </div>
 
   <!-- Phaser -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
 
-  <!-- Firebase SDKs (modo compat) -->
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
-    // CONFIG DO SEU PROJETO (A MESMA QUE VOCÊ JÁ TEM)
     const firebaseConfig = {
       apiKey: "AIzaSyBzFtwO6DtCQNsS1Ja2QsH4nOJEXDwq6QA",
       authDomain: "mini-game-ti.firebaseapp.com",
@@ -34,11 +46,8 @@
       measurementId: "G-2QS55EY821"
     };
 
-    // Inicializa Firebase (compat)
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    // expõe o Firestore pro game.js
-    window.FSDB = db;
+    window.FSDB = firebase.firestore();
   </script>
 
   <script src="perguntas.js"></script>

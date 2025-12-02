@@ -1,32 +1,29 @@
-// game.js — versão final
-// Requisitos: Firebase compat + window.FSDB + perguntas.js
+// game.js — versão final funcional (usa DOM para perguntas/opções)
+// Mantém nickname obrigatório, pontuação, Firestore, leaderboard.
 
-const POINTS_PER_CORRECT = 10; // pontos por acerto
-const NICK_MAX_LENGTH = 16;    // limite do nome no ranking
+const POINTS_PER_CORRECT = 10;
+const NICK_MAX_LENGTH = 16;
 
 let nickname = null;
 let correctCount = 0;
 let incorrectCount = 0;
 let perguntaIndex = 0;
+let game = null;
 
-/* ---------------------------------------------------------
-   Sanitização e limite do apelido
---------------------------------------------------------- */
+/* ---------- Nome utils ---------- */
 function sanitizeAndLimitName(n) {
   if (!n) return "Anônimo";
-  const cleaned = n.trim().replace(/[^\p{L}\p{N}\s_-]/gu, ""); // remove símbolos estranhos
-  const collapsed = cleaned.replace(/\s+/g, " ");             // remove múltiplos espaços
+  const cleaned = n.trim().replace(/[^\p{L}\p{N}\s_-]/gu, "");
+  const collapsed = cleaned.replace(/\s+/g, " ");
   return collapsed.substring(0, NICK_MAX_LENGTH);
 }
 
-/* ---------------------------------------------------------
-   Apelido obrigatório (loop até digitar)
---------------------------------------------------------- */
 function askNicknameBlocking() {
   while (true) {
     const n = prompt(`Digite seu nome (máx ${NICK_MAX_LENGTH} chars):`);
     if (n && n.trim()) {
       nickname = sanitizeAndLimitName(n);
+      updatePlayerNameUI();
       break;
     }
     alert("Apelido obrigatório para jogar.");
@@ -34,300 +31,208 @@ function askNicknameBlocking() {
   return nickname;
 }
 
-/* ---------------------------------------------------------
-   Estilo + animação suave dos botões Phaser
---------------------------------------------------------- */
-function stylePhaserButton(btn) {
-  btn.setInteractive({ useHandCursor: true });
-  const baseScaleX = btn.scaleX || 1;
-  const baseScaleY = btn.scaleY || 1;
+/* ---------- UI DOM helpers ---------- */
+function updatePlayerNameUI() {
+  const el = document.getElementById('playerName');
+  if (el) el.textContent = `Jogador: ${nickname || '—'}`;
+}
 
-  btn.on("pointerover", () => {
-    try { btn.setStyle({ backgroundColor: "#7ABF49" }); } catch (e) {}
-    btn.scene.tweens.killTweensOf(btn);
-    btn.scene.tweens.add({
-      targets: btn,
-      scaleX: baseScaleX * 1.08,
-      scaleY: baseScaleY * 1.08,
-      ease: "Sine.easeOut",
-      duration: 220
-    });
-  });
+function setProgressUI(current, total) {
+  const el = document.getElementById('progress');
+  if (el) el.textContent = `Pergunta ${current} / ${total}`;
+}
 
-  btn.on("pointerout", () => {
-    try { btn.setStyle({ backgroundColor: "#324031" }); } catch (e) {}
-    btn.scene.tweens.killTweensOf(btn);
-    btn.scene.tweens.add({
-      targets: btn,
-      scaleX: baseScaleX,
-      scaleY: baseScaleY,
-      ease: "Sine.easeOut",
-      duration: 220
-    });
-  });
+function showQuestionUI(qObj, idx, total) {
+  const qText = document.getElementById('questionText');
+  const opts = document.getElementById('options');
+  if (!qText || !opts) return;
 
-  btn.on("pointerdown", () => {
-    btn.scene.tweens.killTweensOf(btn);
-    btn.scene.tweens.add({
-      targets: btn,
-      scaleX: baseScaleX * 0.98,
-      scaleY: baseScaleY * 0.98,
-      ease: "Quad.easeInOut",
-      duration: 120,
-      yoyo: true
-    });
+  qText.textContent = qObj.pergunta;
+  setProgressUI(idx + 1, total);
+
+  opts.innerHTML = '';
+  qObj.opcoes.forEach((opt, i) => {
+    const b = document.createElement('button');
+    b.className = 'option-btn';
+    b.textContent = opt;
+    b.dataset.index = i;
+    b.addEventListener('click', () => handleOptionClick(b, i));
+    opts.appendChild(b);
   });
 }
 
-/* ---------------------------------------------------------
-   Tela de Menu
---------------------------------------------------------- */
-class TelaMenu extends Phaser.Scene {
-  constructor() { super("menu"); }
+function handleOptionClick(buttonEl, chosenIndex) {
+  const optButtons = Array.from(document.querySelectorAll('.option-btn'));
+  optButtons.forEach(b => b.disabled = true);
 
-  create() {
-    this.add.text(410, 90, "Mini-Game de\nBoas Práticas de TI", {
-      fontSize: "34px",
-      color: "#0D0D0D",
-      align: "center"
-    }).setOrigin(0.5);
+  const p = PERGUNTAS[perguntaIndex];
+  const correctIdx = p.correta;
 
-    this.add.text(410, 170, `Jogador: ${nickname ? nickname : "— (clique iniciar)"}`, {
-      fontSize: "16px",
-      color: "#324031"
-    }).setOrigin(0.5);
+  optButtons.forEach(btn => {
+    const idx = parseInt(btn.dataset.index, 10);
+    if (idx === correctIdx) btn.classList.add('correct');
+    if (idx === chosenIndex && idx !== correctIdx) btn.classList.add('wrong');
+  });
 
-    const btnStart = this.add.text(410, 300, "Iniciar Jogo", {
-      fontSize: "24px",
-      backgroundColor: "#324031",
-      color: "#ffffff",
-      padding: 14
-    }).setOrigin(0.5);
-    stylePhaserButton(btnStart);
+  if (chosenIndex === correctIdx) correctCount++;
+  else incorrectCount++;
 
-    btnStart.on("pointerdown", () => {
-      if (!nickname) askNicknameBlocking();
-      correctCount = 0;
-      incorrectCount = 0;
-      perguntaIndex = 0;
-      this.scene.start("quiz");
-    });
-
-    const btnEdit = this.add.text(410, 360, "Editar apelido", {
-      fontSize: "16px",
-      backgroundColor: "#7ABF49",
-      color: "#0D0D0D",
-      padding: 10
-    }).setOrigin(0.5);
-    stylePhaserButton(btnEdit);
-
-    btnEdit.on("pointerdown", () => {
-      const n = prompt(`Digite seu apelido (máx ${NICK_MAX_LENGTH} chars):`, nickname || "");
-      if (n && n.trim()) nickname = sanitizeAndLimitName(n);
-      this.scene.restart();
-    });
-  }
-}
-
-/* ---------------------------------------------------------
-   Tela de Quiz
---------------------------------------------------------- */
-class TelaQuiz extends Phaser.Scene {
-  constructor() { super("quiz"); }
-
-  create() {
-    this.mostrarPergunta();
-  }
-
-  mostrarPergunta() {
-    this.children.removeAll();
-
-    if (perguntaIndex >= PERGUNTAS.length) {
-      this.scene.start("resultado");
-      return;
-    }
-
-    const p = PERGUNTAS[perguntaIndex];
-
-    this.add.text(410, 60, `Pergunta ${perguntaIndex + 1} de ${PERGUNTAS.length}`, {
-      fontSize: "16px",
-      color: "#324031"
-    }).setOrigin(0.5);
-
-    this.add.text(410, 120, p.pergunta, {
-      fontSize: "24px",
-      color: "#0D0D0D",
-      wordWrap: { width: 740, useAdvancedWrap: true }
-    }).setOrigin(0.5);
-
-    p.opcoes.forEach((op, i) => {
-      const y = 220 + i * 68;
-      const btn = this.add.text(410, y, op, {
-        fontSize: "20px",
-        backgroundColor: "#3A403B",
-        color: "#ffffff",
-        padding: 12
-      }).setOrigin(0.5);
-
-      stylePhaserButton(btn);
-      btn.on("pointerdown", () => this.verificarResposta(i));
-    });
-  }
-
-  verificarResposta(i) {
-    const p = PERGUNTAS[perguntaIndex];
-
-    if (i === p.correta) {
-      correctCount++;
-      this.add.text(410, 520, "Correto! 👍", {
-        fontSize: "18px",
-        color: "#7ABF49"
-      }).setOrigin(0.5);
-    } else {
-      incorrectCount++;
-      this.add.text(410, 520, `Errado. Correto: ${p.opcoes[p.correta]}`, {
-        fontSize: "16px",
-        color: "#d32f2f"
-      }).setOrigin(0.5);
-    }
-
+  setTimeout(() => {
     perguntaIndex++;
-    this.time.delayedCall(900, () => this.mostrarPergunta());
+    if (perguntaIndex >= PERGUNTAS.length) {
+      if (game && game.scene) game.scene.start('resultado');
+    } else {
+      showQuestionUI(PERGUNTAS[perguntaIndex], perguntaIndex, PERGUNTAS.length);
+    }
+  }, 800);
+}
+
+/* ---------- Leaderboard UI ---------- */
+async function carregarLeaderboardUI() {
+  try {
+    const q = await window.FSDB.collection('scores').orderBy('score', 'desc').limit(10).get();
+    const list = document.getElementById('lbList');
+    if (!list) return;
+    list.innerHTML = '';
+    q.forEach(doc => {
+      const d = doc.data();
+      const li = document.createElement('li');
+      li.textContent = sanitizeAndLimitName(d.nickname || '—');
+      const span = document.createElement('span');
+      span.textContent = `${d.score} pts`;
+      li.appendChild(span);
+      list.appendChild(li);
+    });
+    document.getElementById('leaderboard').style.display = 'block';
+  } catch (err) {
+    console.error('Erro leaderboard:', err);
   }
 }
 
-/* ---------------------------------------------------------
-   Tela de Resultado
---------------------------------------------------------- */
-class TelaResultado extends Phaser.Scene {
-  constructor() { super("resultado"); }
-
+/* ---------- Phaser Scenes (fluxo) ---------- */
+class TelaMenu extends Phaser.Scene {
+  constructor() { super('menu'); }
   create() {
-    this.children.removeAll();
-
-    const score = correctCount * POINTS_PER_CORRECT;
-
-    this.add.text(410, 48, "Resultado Final", {
-      fontSize: "32px",
-      color: "#0D0D0D"
-    }).setOrigin(0.5);
-
-    this.add.text(410, 120, `Acertos: ${correctCount}`, {
-      fontSize: "20px",
-      color: "#324031"
-    }).setOrigin(0.5);
-
-    this.add.text(410, 156, `Erros: ${incorrectCount}`, {
-      fontSize: "20px",
-      color: "#324031"
-    }).setOrigin(0.5);
-
-    this.add.text(410, 210, `Pontuação: ${score}`, {
-      fontSize: "18px",
-      color: "#7ABF49"
-    }).setOrigin(0.5);
-
-    const btnPlay = this.add.text(290, 320, "Jogar Novamente", {
-      fontSize: "16px",
-      backgroundColor: "#3A403B",
-      color: "#ffffff",
-      padding: 12
-    }).setOrigin(0.5);
-    stylePhaserButton(btnPlay);
-    btnPlay.on("pointerdown", () => this.scene.start("menu"));
-
-    const btnShow = this.add.text(530, 320, "Ver Leaderboard", {
-      fontSize: "16px",
-      backgroundColor: "#7ABF49",
-      color: "#0D0D0D",
-      padding: 12
-    }).setOrigin(0.5);
-    stylePhaserButton(btnShow);
-    btnShow.on("pointerdown", () => {
-      document.getElementById("leaderboard").style.display = "block";
-      this.carregarLeaderboard();
+    updatePlayerNameUI();
+    // bind Enter para iniciar também
+    this.input.keyboard.once('keydown-ENTER', () => {
+      document.getElementById('btnStart').click();
     });
-
-    this.salvarScoreFirestore({ nickname, score, correct: correctCount, incorrect: incorrectCount });
   }
+}
 
-  async salvarScoreFirestore(payload) {
-    try {
-      payload.nickname = sanitizeAndLimitName(payload.nickname);
-      payload.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+class TelaQuiz extends Phaser.Scene {
+  constructor() { super('quiz'); }
+  create() {
+    const rb = document.getElementById('resultBar');
+    if (rb) rb.style.display = 'none';
+    perguntaIndex = 0;
+    setTimeout(() => showQuestionUI(PERGUNTAS[perguntaIndex], perguntaIndex, PERGUNTAS.length), 60);
+  }
+}
 
-      await window.FSDB.collection("scores").add(payload);
-
-      console.log("Score salvo:", payload);
-      this.carregarLeaderboard();
-    } catch (err) {
-      console.error("Erro ao salvar score:", err);
-      const list = document.getElementById("lbList");
-      if (list) {
-        list.innerHTML = `<li style="color:red">Erro ao salvar score: ${err.message}</li>`;
-        document.getElementById("leaderboard").style.display = "block";
-      }
+class TelaResultado extends Phaser.Scene {
+  constructor() { super('resultado'); }
+  create() {
+    const summary = document.getElementById('resultSummary');
+    const bar = document.getElementById('resultBar');
+    if (summary && bar) {
+      const score = correctCount * POINTS_PER_CORRECT;
+      summary.textContent = `Acertos: ${correctCount} • Erros: ${incorrectCount} • Pontuação: ${score}`;
+      bar.style.display = 'block';
     }
-  }
 
-  async carregarLeaderboard() {
-    try {
-      const q = await window.FSDB.collection("scores")
-        .orderBy("score", "desc")
-        .limit(10)
-        .get();
+    // salva no Firestore
+    const payload = {
+      nickname: sanitizeAndLimitName(nickname),
+      score: correctCount * POINTS_PER_CORRECT,
+      correct: correctCount,
+      incorrect: incorrectCount,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
 
-      const list = document.getElementById("lbList");
-      if (!list) return;
-
-      list.innerHTML = "";
-
-      q.forEach(doc => {
-        const d = doc.data();
-        const name = sanitizeAndLimitName(d.nickname || "—");
-        const score = d.score || 0;
-
-        const li = document.createElement("li");
-        li.textContent = name;
-
-        const span = document.createElement("span");
-        span.textContent = `${score} pts`;
-
-        li.appendChild(span);
-        list.appendChild(li);
+    window.FSDB.collection('scores').add(payload)
+      .then(() => carregarLeaderboardUI())
+      .catch(err => {
+        console.error('Erro ao salvar score', err);
+        const list = document.getElementById('lbList');
+        if (list) list.innerHTML = `<li style="color:red">Erro ao salvar score: ${err.message}</li>`;
+        document.getElementById('leaderboard').style.display = 'block';
       });
 
-      document.getElementById("leaderboard").style.display = "block";
-    } catch (err) {
-      console.error("Erro leaderboard:", err);
-    }
+    // bind botões
+    const replay = document.getElementById('btnReplay');
+    const showBoard = document.getElementById('btnShowBoard');
+    if (replay) replay.onclick = () => { document.getElementById('resultBar').style.display = 'none'; this.scene.start('menu'); };
+    if (showBoard) showBoard.onclick = () => carregarLeaderboardUI();
   }
 }
 
-/* ---------------------------------------------------------
-   Configuração Phaser
---------------------------------------------------------- */
+/* ---------- Phaser config & start after fonts load ---------- */
 const config = {
   type: Phaser.AUTO,
   width: 820,
   height: 560,
-  backgroundColor: "#ffffff",
+  backgroundColor: '#ffffff',
+  parent: 'gameHolder',
   scene: [TelaMenu, TelaQuiz, TelaResultado]
 };
 
-/* ---------------------------------------------------------
-   Inicia Phaser após fonte carregar
---------------------------------------------------------- */
-function startPhaserWhenFontsLoaded(cfg) {
+function startPhaserWhenFontsLoaded() {
   if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => {
-      setTimeout(() => new Phaser.Game(cfg), 80);
-    }).catch(() => {
-      setTimeout(() => new Phaser.Game(cfg), 80);
-    });
+    document.fonts.ready.then(() => { game = new Phaser.Game(config); }).catch(() => { game = new Phaser.Game(config); });
   } else {
-    setTimeout(() => new Phaser.Game(cfg), 80);
+    game = new Phaser.Game(config);
   }
 }
+startPhaserWhenFontsLoaded();
 
-startPhaserWhenFontsLoaded(config);
+/* ---------- DOM wiring: buttons visíveis ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // Start button
+  const btnStart = document.getElementById('btnStart');
+  const btnEdit = document.getElementById('btnEdit');
+
+  btnStart.addEventListener('click', () => {
+    if (!nickname) askNicknameBlocking();
+    correctCount = 0; incorrectCount = 0; perguntaIndex = 0;
+
+    // garante que phaser já existe
+    if (!game) {
+      // esperar criação do game
+      const waitGame = setInterval(() => {
+        if (game && game.scene) {
+          clearInterval(waitGame);
+          game.scene.start('quiz');
+        }
+      }, 100);
+    } else {
+      game.scene.start('quiz');
+    }
+  });
+
+  btnEdit.addEventListener('click', () => {
+    const n = prompt(`Digite seu apelido (máx ${NICK_MAX_LENGTH} chars):`, nickname || "");
+    if (n && n.trim()) {
+      nickname = sanitizeAndLimitName(n);
+      updatePlayerNameUI();
+    }
+  });
+
+  // Enter key starts if focused anywhere
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      btnStart.click();
+    }
+  });
+
+  // Inicializa HUD text & preview state
+  updatePlayerNameUI();
+  if (typeof PERGUNTAS !== 'undefined' && PERGUNTAS.length > 0) {
+    const qText = document.getElementById('questionText');
+    const opts = document.getElementById('options');
+    if (qText) qText.textContent = "Clique em Iniciar Jogo para começar.";
+    if (opts) opts.innerHTML = '<div class="small">Opções aparecerão aqui ao iniciar o jogo.</div>';
+    setProgressUI(0, PERGUNTAS.length);
+  }
+});

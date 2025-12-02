@@ -2,40 +2,122 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-
   <title>Mini-Game Boas Práticas TI</title>
 
-  <!-- PRELOAD DAS FONTES OTF -->
+  <!-- preload fontes (se usar) -->
   <link rel="preload" href="fonts/Arlon-Regular.otf" as="font" type="font/otf" crossorigin>
   <link rel="preload" href="fonts/Arlon-Bold.otf" as="font" type="font/otf" crossorigin>
 
   <link rel="stylesheet" href="style.css">
 
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
   <style>
-    canvas {
-      image-rendering: optimizeQuality;
+    /* Fallback visual mínimo */
+    :root{ --brand-1:#3A403B; --brand-2:#324031; --accent:#7ABF49; --white:#fff; --muted:#f6f6f4; --ease:cubic-bezier(.2,.9,.3,1); }
+    @font-face{ font-family:"Arlon"; src:url("fonts/Arlon-Regular.otf") format("opentype"); font-display:swap; }
+    html,body{ height:100%; margin:0; font-family:"Arlon", Arial, sans-serif; background:var(--muted); color:var(--brand-2); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+    header{ padding:12px 18px; display:flex; align-items:center; gap:12px; background:var(--white); box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+    #app{ max-width:1200px; margin:18px auto; display:flex; gap:18px; padding:0 12px; align-items:flex-start; }
+
+    /* Game area */
+    #gameArea{ flex:1 1 auto; position:relative; display:flex; justify-content:center; }
+    #gameHolder{ width:820px; height:560px; background:var(--white); border-radius:12px; box-shadow:0 18px 40px rgba(0,0,0,0.06); overflow:hidden; display:flex; align-items:center; justify-content:center; }
+
+    /* UI overlay (DOM sobre canvas) */
+    #uiOverlay{ position:absolute; left:0; top:0; width:820px; height:560px; pointer-events:none; display:flex; flex-direction:column; align-items:center; }
+    #uiOverlay *{ pointer-events:auto; }
+    #hud{ width:100%; display:flex; justify-content:space-between; padding:12px 18px; box-sizing:border-box; align-items:center; gap:12px; }
+
+    /* Start / Edit buttons in HUD */
+    .hud-left { display:flex; align-items:center; gap:10px; }
+    .hud-right { display:flex; gap:10px; align-items:center; }
+
+    #playerName{ font-size:14px; color:var(--brand-2); }
+    #progress{ font-size:13px; color:#666; }
+
+    #questionCard{ width:92%; margin-top:8px; text-align:center; }
+    #questionText{ font-size:20px; color:var(--brand-1); line-height:1.25; margin:8px 0 16px 0; min-height:48px; }
+
+    #options{ display:flex; flex-direction:column; gap:12px; align-items:center; width:100%; padding:0 8px; }
+    .option-btn{ width:100%; max-width:740px; padding:12px 16px; border-radius:12px; background:var(--brand-2); color:#fff; border:none; text-align:left; font-size:18px; white-space:normal; word-wrap:break-word; word-break:break-word; cursor:pointer; box-shadow:0 8px 22px rgba(0,0,0,0.08); }
+    .option-btn:hover{ transform:translateY(-4px); }
+    .option-btn.correct{ background: linear-gradient(90deg, rgba(122,191,73,0.95), rgba(122,191,73,0.85)); }
+    .option-btn.wrong{ background: linear-gradient(90deg, rgba(220,80,80,0.95), rgba(200,60,60,0.85)); }
+
+    #resultBar{ display:none; margin-top:12px; text-align:center; }
+    .btn{ padding:10px 14px; border-radius:10px; border:none; background:var(--brand-2); color:#fff; cursor:pointer; margin:6px; }
+    .btn.secondary{ background:var(--accent); color:#0d0d0d; }
+
+    /* sidebar */
+    #sidebar{ width:340px; flex:0 0 340px; display:flex; flex-direction:column; gap:14px; }
+    #leaderboard{ display:none; background:var(--white); border-radius:12px; padding:12px; box-shadow:0 12px 34px rgba(0,0,0,0.06); }
+    #lbList{ list-style:none; margin:0; padding-left:10px; max-height:260px; overflow:auto; }
+    #q-preview{ background:var(--white); border-radius:12px; padding:12px; box-shadow:0 12px 34px rgba(0,0,0,0.06); max-height:520px; overflow:auto; }
+
+    /* responsive */
+    @media(max-width:980px){
+      #app{ flex-direction:column; padding:12px; }
+      #sidebar{ width:100%; order:2; }
+      #gameArea{ order:1; }
+      #gameHolder, #uiOverlay{ width:95%; height:auto; position:relative; }
+      canvas{ width:100% !important; height:auto !important; }
+      .option-btn{ max-width:100%; }
     }
   </style>
 </head>
-
 <body>
-    <header>
-        <img src="marca_Natulab_FUNDO_TRANSPARENTE.png" alt="Logo Natulab">
-    </header>
+  <header>
+    <img src="marca_Natulab_FUNDO_TRANSPARENTE.png" alt="Logo" style="height:44px">
+    <h1 style="font-size:18px;margin:0">Mini-Game Boas Práticas TI</h1>
+  </header>
 
-  <div id="leaderboard" style="display:none">
-    <strong id="leadTitle">Leaderboard (Top 10)</strong>
-    <ol id="lbList"></ol>
+  <div id="app">
+    <div id="gameArea">
+      <div id="gameHolder"></div>
+
+      <!-- UI overlay: HUD, pergunta e opções (DOM) -->
+      <div id="uiOverlay">
+        <div id="hud">
+          <div class="hud-left">
+            <div id="playerName">Jogador: —</div>
+            <div id="progress">Pergunta 0/0</div>
+          </div>
+
+          <div class="hud-right">
+            <button id="btnStart" class="btn">Iniciar Jogo</button>
+            <button id="btnEdit" class="btn secondary">Editar apelido</button>
+          </div>
+        </div>
+
+        <div id="questionCard" aria-live="polite">
+          <div id="questionText">Clique em Iniciar Jogo</div>
+          <div id="options"><div class="small">Opções aparecerão aqui ao iniciar.</div></div>
+        </div>
+
+        <div id="resultBar">
+          <div id="resultSummary" style="margin-bottom:8px;font-size:16px"></div>
+          <button id="btnReplay" class="btn">Jogar Novamente</button>
+          <button id="btnShowBoard" class="btn secondary">Ver Leaderboard</button>
+        </div>
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <div id="leaderboard">
+        <strong id="leadTitle">Leaderboard (Top 10)</strong>
+        <ol id="lbList"></ol>
+      </div>
+    </aside>
   </div>
 
-  <!-- Phaser -->
+  <!-- libs (ordem importante) -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
-
-  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBzFtwO6DtCQNsS1Ja2QsH4nOJEXDwq6QA",
       authDomain: "mini-game-ti.firebaseapp.com",
@@ -45,12 +127,14 @@
       appId: "1:77152341740:web:7f134eac6c8cf150a89fc9",
       measurementId: "G-2QS55EY821"
     };
-
     firebase.initializeApp(firebaseConfig);
     window.FSDB = firebase.firestore();
   </script>
 
+  <!-- perguntas.js (mantenha seu arquivo com PERGUNTAS) -->
   <script src="perguntas.js"></script>
+
+  <!-- application game -->
   <script src="game.js"></script>
 </body>
 </html>

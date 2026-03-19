@@ -1,10 +1,10 @@
 // js/game.js
 // Lógica reescrita em Vanilla JS (motor DOM puro), removendo o peso do Phaser.
 
-const POINTS_PER_CORRECT = 10;
 const NICK_MAX_LENGTH = 16;
 
 let nickname = null;
+let totalScore = 0;
 let correctCount = 0;
 let incorrectCount = 0;
 let perguntaIndex = 0;
@@ -73,8 +73,12 @@ function handleOptionClick(buttonEl, chosenIndex) {
     if (idx === chosenIndex && idx !== correctIdx) btn.classList.add('wrong');
   });
 
-  if (chosenIndex === correctIdx) correctCount++;
-  else incorrectCount++;
+  if (chosenIndex === correctIdx) {
+    correctCount++;
+    totalScore += p.pontos;
+  } else {
+    incorrectCount++;
+  }
 
   setTimeout(() => {
     perguntaIndex++;
@@ -127,6 +131,7 @@ function initGame() {
   const rb = document.getElementById('resultBar');
   if (rb) rb.style.display = 'none';
   
+  totalScore = 0;
   correctCount = 0; 
   incorrectCount = 0; 
   perguntaIndex = 0;
@@ -148,11 +153,10 @@ function showResultScreen() {
   if (opts) opts.innerHTML = '';
 
   if (summary && bar) {
-    const score = correctCount * POINTS_PER_CORRECT;
-    summary.textContent = `Acertos: ${correctCount} • Erros: ${incorrectCount} • Pontuação: ${score}`;
+    summary.textContent = `Acertos: ${correctCount} • Erros: ${incorrectCount} • Pontuação Total: ${totalScore} / 100`;
     bar.style.display = 'block';
 
-    saveScore(score);
+    saveScore(totalScore);
   }
 }
 

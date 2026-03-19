@@ -172,13 +172,15 @@ async function saveScore(score) {
     await window.FSDB.collection('scores').add(payload);
     carregarLeaderboardUI();
   } catch (err) {
-    console.error('Erro ao salvar score no Firestore:', err);
+    console.error('Erro detalhado ao salvar score no Firestore:', err);
+    console.warn('Dica: Verifique se as Regras do Firestore permitem gravação na coleção "scores".');
+    
     const list = document.getElementById('lbList');
     if (list) {
       const errInfo = document.createElement('li');
       errInfo.style.color = "red";
       errInfo.style.fontSize = "12px";
-      errInfo.textContent = "Pontuação não salva: erro de conexão ou permissão.";
+      errInfo.textContent = `Falha ao salvar: ${err.code || 'erro de conexão'}. Contate a TI.`;
       list.prepend(errInfo);
     }
   }
